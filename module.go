@@ -1,14 +1,11 @@
 // Package module provides a way to do dependency injection, with type-safe, without performance penalty.
-// See examples for the basic usage.
+// See [examples](#example-Module) for the basic usage.
 package module
 
 import (
 	"context"
 	"reflect"
 )
-
-// BuildFunc is the constructor of an Instance.
-type BuildFunc[T any] func(context.Context) (T, error)
 
 type moduleKey string
 

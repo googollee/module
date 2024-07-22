@@ -8,13 +8,16 @@ type Provider interface {
 	value(ctx context.Context) (any, error)
 }
 
+// BuildFunc is the constructor of an Instance.
+type BuildFunc[T any] func(context.Context) (T, error)
+
 type funcProvider[T any] struct {
 	moduleKey moduleKey
 	ctor      BuildFunc[T]
 }
 
 // ProvideWithFunc returns a provider which provides instances creating from `ctor` function.
-func (m *Module[T]) ProvideWithFunc(ctor BuildFunc[T]) Provider {
+func (m Module[T]) ProvideWithFunc(ctor BuildFunc[T]) Provider {
 	return &funcProvider[T]{
 		moduleKey: m.moduleKey,
 		ctor:      ctor,
@@ -22,7 +25,7 @@ func (m *Module[T]) ProvideWithFunc(ctor BuildFunc[T]) Provider {
 }
 
 // ProvideValue returns a provider which always provides given `value` as instances.
-func (m *Module[T]) ProvideValue(value T) Provider {
+func (m Module[T]) ProvideValue(value T) Provider {
 	return m.ProvideWithFunc(func(context.Context) (T, error) {
 		return value, nil
 	})
