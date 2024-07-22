@@ -21,6 +21,13 @@ func (m *Module[T]) ProvideWithFunc(ctor BuildFunc[T]) Provider {
 	}
 }
 
+// ProvideValue returns a provider which always provides given `value` as instances.
+func (m *Module[T]) ProvideValue(value T) Provider {
+	return m.ProvideWithFunc(func(context.Context) (T, error) {
+		return value, nil
+	})
+}
+
 func (p funcProvider[T]) key() moduleKey {
 	return p.moduleKey
 }
