@@ -106,6 +106,35 @@ func ExampleModule_withOtherValue() {
 	// cache fallback target: target.db
 }
 
+func ExampleModule_withNewDB() {
+	ctx := context.Background()
+
+	repo := module.NewRepo()
+	repo.Add(ProvideCache)
+	repo.Add(ProvideDB)
+
+	ctx, err := repo.InjectTo(ctx)
+	if err != nil {
+		fmt.Println("inject error:", err)
+		return
+	}
+
+	ctx = ModuleDB.With(ctx, &db{
+		target: "new.db",
+	})
+
+	db := ModuleDB.Value(ctx)
+	cache := ModuleCache.Value(ctx)
+
+	fmt.Println("db target:", db.Target())
+	fmt.Println("cache fallback target:", cache.fallback.Target())
+
+	// Output:
+	// db target: new.db
+	// cache fallback target: localhost.db
+
+}
+
 func ExampleModule_createWithError() {
 	ctx := context.Background()
 

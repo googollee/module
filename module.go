@@ -36,3 +36,7 @@ func (m Module[T]) Value(ctx context.Context) T {
 
 	return v.(T)
 }
+
+func (m Module[T]) With(ctx context.Context, t T) context.Context {
+	return context.WithValue(ctx, m.moduleKey, t)
+}
