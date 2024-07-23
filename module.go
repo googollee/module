@@ -1,5 +1,5 @@
 // Package module provides a way to do dependency injection, with type-safe, without performance penalty.
-// See [examples](#example-Module) for the basic usage.
+// See [examples_test.go](./examples_test.go) for the basic usage.
 package module
 
 import (

@@ -47,7 +47,7 @@ func ExampleModule() {
 	// level=ERROR msg=error
 }
 
-func ExampleModule_withAttr() {
+func ExampleWith() {
 	loggerOption := slog.HandlerOptions{
 		AddSource:   false, // Remove code position from the output for predictable test output.
 		ReplaceAttr: removeTimeAttr,
