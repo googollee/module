@@ -20,18 +20,21 @@ func captureStderr(t *testing.T, f func(t *testing.T)) string {
 	if err != nil {
 		t.Fatal("create pipe error:", err)
 	}
+	defer func() {
+		r.Close()
+	}()
 
 	orig := os.Stderr
 	os.Stderr = w
 
-	defer func() {
-		os.Stderr = orig
-		w.Close()
+	func() {
+		defer func() {
+			os.Stderr = orig
+			w.Close()
+		}()
+
+		f(t)
 	}()
-
-	f(t)
-
-	w.Close()
 
 	out, err := io.ReadAll(r)
 	if err != nil {
