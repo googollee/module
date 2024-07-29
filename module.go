@@ -34,6 +34,7 @@ func (m Module[T]) Value(ctx context.Context) T {
 	return v.(T)
 }
 
+// With returns a new context instance which is injected a new instance `t`.
 func (m Module[T]) With(ctx context.Context, t T) context.Context {
 	return context.WithValue(ctx, m.moduleKey, t)
 }
