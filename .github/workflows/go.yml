@@ -13,15 +13,18 @@ jobs:
     strategy:
       matrix:
         go:
-        - '1.22'
+        - 'stable'
+
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout the repo
+      uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '${{ matrix.go }}'
         check-latest: true
+        cache-dependency-path: ./go.sum
 
     - name: Build
       run: go build -v ./...
