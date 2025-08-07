@@ -34,7 +34,6 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        slug: googollee/clic
         files: ./coverage.txt
         flags: unittests
         fail_ci_if_error: true
