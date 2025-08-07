@@ -2,6 +2,13 @@ package module
 
 import "context"
 
+// WithError wraps a function with returning an always-nil error.
+func WithError[T any](f func(context.Context) T) func(context.Context) (T, error) {
+	return func(ctx context.Context) (T, error) {
+		return f(ctx), nil
+	}
+}
+
 // Provider is the interface to provide an Instance.
 type Provider interface {
 	key() moduleKey
