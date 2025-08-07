@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: [master]
+
+jobs:
+  test-server:
+    name: Test server
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: 
+        - '1.24'
+        - 'stable'
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Setup Go ${{ matrix.go-version }}
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Test
+      run: |
+        go test ./... -race \
+          -coverpkg=./... -coverprofile=coverage.txt -covermode=atomic -cover
+
+    - name: Upload to codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: googollee/clic
+        files: ./coverage.txt
+        flags: unittests
+        fail_ci_if_error: true
+        verbose: true
