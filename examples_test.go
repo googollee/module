@@ -22,6 +22,19 @@ func (db *db) Target() string {
 	return db.target
 }
 
+type CloserDB struct {
+	target string
+}
+
+func (c *CloserDB) Target() string {
+	return c.target
+}
+
+func (c *CloserDB) Close() error {
+	fmt.Printf("closing db: %s\n", c.target)
+	return nil
+}
+
 type Cache struct {
 	fallback  DB
 	keyPrefix string
@@ -223,4 +236,34 @@ func ExampleModule_registrationErrors() {
 	// Output:
 	// missing provider: creating with module module_test.DB: can't find module
 	// duplicate provider: already have a provider with type module_test.DB, added at <removed>
+}
+// ExampleModule_cleanup demonstrates the automatic cleanup feature.
+// If an injected instance implements `interface{ Close() error }`,
+// repo.Cleanup() will automatically call it in reverse order of creation.
+func ExampleModule_cleanup() {
+	repo := module.NewRepo()
+	defer func() {
+		if err := repo.Cleanup(); err != nil {
+			fmt.Println("cleanup error:", err)
+		}
+	}()
+
+	// 1. Add a provider that returns a 'closer' (CloserDB implements Close()).
+	repo.Add(ModuleDB.ProvideValue(&CloserDB{target: "closable.db"}))
+
+	// 2. Add a provider that returns a non-closer (Cache does not have Close()).
+	repo.Add(ProvideCache)
+
+	// 3. Inject and use.
+	ctx, _ := repo.InjectTo(context.Background())
+
+	// Trigger creation of both modules.
+	// Order of creation: CloserDB (dependency), then Cache.
+	_ = ModuleCache.Value(ctx)
+
+	fmt.Println("doing work...")
+
+	// Output:
+	// doing work...
+	// closing db: closable.db
 }

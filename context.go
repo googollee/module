@@ -18,6 +18,7 @@ type createPanic struct {
 }
 
 type buildContext struct {
+	repo *Repo
 	context.Context
 	providers map[moduleKey]providerWithLine
 	instances map[moduleKey]any
@@ -51,6 +52,7 @@ func (c *buildContext) Value(key any) any {
 	}
 
 	builder := &buildContext{
+		repo:      c.repo,
 		Context:   c.Context,
 		providers: c.providers,
 		instances: c.instances,
@@ -62,6 +64,11 @@ func (c *buildContext) Value(key any) any {
 		panic(createPanic{key: moduleKey, err: err})
 	}
 	c.instances[moduleKey] = instance
+
+	if closer, ok := instance.(interface{ Close() error }); ok {
+		c.repo.addCleanup(closer.Close)
+	}
+
 	return instance
 }
 
