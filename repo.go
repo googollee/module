@@ -1,9 +1,11 @@
 package module
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
 )
 
@@ -75,7 +77,15 @@ func (r *Repo) buildValues(ctx context.Context) (err error) {
 		instances: r.instances,
 	}
 
+	keys := make([]moduleKey, 0, len(r.providers))
 	for key := range r.providers {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b moduleKey) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+
+	for _, key := range keys {
 		_ = builder.Value(key)
 	}
 

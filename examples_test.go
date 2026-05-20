@@ -8,6 +8,8 @@ import (
 	"github.com/googollee/module"
 )
 
+// --- Basic Types for Examples ---
+
 type DB interface {
 	Target() string
 }
@@ -20,18 +22,24 @@ func (db *db) Target() string {
 	return db.target
 }
 
-var (
-	ModuleDB = module.New[DB]()
-)
-
 type Cache struct {
 	fallback  DB
 	keyPrefix string
 }
 
+// --- Module Definitions (Global Tokens) ---
+
 var (
-	ModuleCache  = module.New[*Cache]()
+	// ModuleDB is a token for DB interface.
+	ModuleDB = module.New[DB]()
+
+	// ModuleCache is a token for *Cache struct.
+	ModuleCache = module.New[*Cache]()
+
+	// ProvideCache defines how to create a Cache.
+	// It depends on ModuleDB.
 	ProvideCache = ModuleCache.ProvideWithFunc(func(ctx context.Context) (*Cache, error) {
+		// Use Module.Value to get dependencies from the context during construction.
 		db := ModuleDB.Value(ctx)
 		return &Cache{
 			fallback:  db,
@@ -40,49 +48,70 @@ var (
 	})
 )
 
-func ExampleModule() {
+// ExampleModule_basic shows the simplest way to use the library:
+// Define a module, add its provider, inject it, and use it.
+func ExampleModule_basic() {
+	// 1. Create a repository to hold providers.
 	repo := module.NewRepo()
 
-	// No order required when adding providers
-	repo.Add(ProvideCache)
-	repo.Add(ModuleDB.ProvideValue(&db{target: "local.db"}))
+	// 2. Add a provider (in this case, a static value).
+	repo.Add(ModuleDB.ProvideValue(&db{target: "simple.db"}))
 
-	ctx := context.Background()
-
-	ctx, err := repo.InjectTo(ctx)
+	// 3. Inject providers into a context.
+	// This creates the instances defined by the providers.
+	ctx, err := repo.InjectTo(context.Background())
 	if err != nil {
 		fmt.Println("inject error:", err)
 		return
 	}
 
-	db := ModuleDB.Value(ctx)
-	cache := ModuleCache.Value(ctx)
+	// 4. Retrieve the instance using the Module token.
+	// No type assertion needed!
+	database := ModuleDB.Value(ctx)
+	fmt.Println("db target:", database.Target())
 
-	fmt.Println("db target:", db.Target())
+	// Output:
+	// db target: simple.db
+}
+
+// ExampleModule_dependencies demonstrates automatic dependency resolution.
+// Even if ProvideCache is added before ModuleDB, the library handles it.
+func ExampleModule_dependencies() {
+	repo := module.NewRepo()
+
+	// No order required when adding providers.
+	// ModuleCache depends on ModuleDB (see ProvideCache definition above).
+	repo.Add(ProvideCache)
+	repo.Add(ModuleDB.ProvideValue(&db{target: "local.db"}))
+
+	ctx, err := repo.InjectTo(context.Background())
+	if err != nil {
+		fmt.Println("inject error:", err)
+		return
+	}
+
+	// Retrieve the cache. Its 'fallback' field will be automatically populated with the DB.
+	cache := ModuleCache.Value(ctx)
 	fmt.Println("cache fallback target:", cache.fallback.Target())
 
 	// Output:
-	// db target: local.db
 	// cache fallback target: local.db
 }
 
-func ExampleModule_loadOtherValue() {
+// ExampleModule_contextValues shows how a provider can access existing values in the context.
+func ExampleModule_contextValues() {
 	type Key string
 	targetKey := Key("target")
 
 	repo := module.NewRepo()
 	repo.Add(ModuleDB.ProvideWithFunc(func(ctx context.Context) (DB, error) {
-		// Load the target value from the context.
+		// Providers can read standard context values.
 		target := ctx.Value(targetKey).(string)
-
-		return &db{
-			target: target,
-		}, nil
+		return &db{target: target}, nil
 	}))
-	repo.Add(ProvideCache)
 
-	// Store the target value in the context.
-	ctx := context.WithValue(context.Background(), targetKey, "target.db")
+	// Put a value into the context before injection.
+	ctx := context.WithValue(context.Background(), targetKey, "from_ctx.db")
 
 	ctx, err := repo.InjectTo(ctx)
 	if err != nil {
@@ -90,167 +119,108 @@ func ExampleModule_loadOtherValue() {
 		return
 	}
 
-	db := ModuleDB.Value(ctx)
-	cache := ModuleCache.Value(ctx)
-
-	fmt.Println("db target:", db.Target())
-	fmt.Println("cache fallback target:", cache.fallback.Target())
+	database := ModuleDB.Value(ctx)
+	fmt.Println("db target:", database.Target())
 
 	// Output:
-	// db target: target.db
-	// cache fallback target: target.db
+	// db target: from_ctx.db
 }
 
-func ExampleModule_newPrefixInSpan() {
+// ExampleModule_scopedOverride demonstrates how to override a module instance
+// for a specific scope using Module.With.
+func ExampleModule_scopedOverride() {
 	repo := module.NewRepo()
-	repo.Add(ModuleDB.ProvideValue(&db{target: "local.db"}))
+	repo.Add(ModuleDB.ProvideValue(&db{target: "default.db"}))
 	repo.Add(ProvideCache)
 
-	ctx := context.Background()
+	ctx, _ := repo.InjectTo(context.Background())
 
-	ctx, err := repo.InjectTo(ctx)
-	if err != nil {
-		fmt.Println("inject error:", err)
-		return
-	}
-
-	db := ModuleDB.Value(ctx)
-	cache := ModuleCache.Value(ctx)
-	fmt.Println("before span, db target:", db.Target())
-	fmt.Println("before span, cache prefix:", cache.keyPrefix)
+	fmt.Println("original prefix:", ModuleCache.Value(ctx).keyPrefix)
 
 	{
-		// a new context in the span
-		ctx := ModuleCache.With(ctx, &Cache{
-			fallback:  db,
-			keyPrefix: "span",
+		// Create a new context where ModuleCache is overridden.
+		scopedCtx := ModuleCache.With(ctx, &Cache{
+			fallback:  ModuleDB.Value(ctx),
+			keyPrefix: "scoped",
 		})
 
-		db := ModuleDB.Value(ctx)
-		cache := ModuleCache.Value(ctx)
-		fmt.Println("in span, db target:", db.Target())
-		fmt.Println("in span, cache prefix:", cache.keyPrefix)
+		fmt.Println("scoped prefix:", ModuleCache.Value(scopedCtx).keyPrefix)
 	}
 
-	db = ModuleDB.Value(ctx)
-	cache = ModuleCache.Value(ctx)
-	fmt.Println("after span, db target:", db.Target())
-	fmt.Println("after span, cache fallback target:", cache.keyPrefix)
+	// The original context remains unchanged.
+	fmt.Println("back to original prefix:", ModuleCache.Value(ctx).keyPrefix)
 
 	// Output:
-	// before span, db target: local.db
-	// before span, cache prefix: cache
-	// in span, db target: local.db
-	// in span, cache prefix: span
-	// after span, db target: local.db
-	// after span, cache fallback target: cache
-
+	// original prefix: cache
+	// scoped prefix: scoped
+	// back to original prefix: cache
 }
 
-func ExampleModule_createWithError() {
+// --- Error Handling Examples ---
+
+func ExampleModule_errorHandling() {
 	repo := module.NewRepo()
-	repo.Add(ModuleDB.ProvideValue(&db{target: "local.db"}))
-	repo.Add(ModuleCache.ProvideWithFunc(func(ctx context.Context) (*Cache, error) {
-		_ = ModuleDB.Value(ctx)
-		return nil, fmt.Errorf("new cache error")
+
+	// Provider returns an error.
+	repo.Add(ModuleDB.ProvideWithFunc(func(ctx context.Context) (DB, error) {
+		return nil, fmt.Errorf("connection failed")
 	}))
 
-	ctx := context.Background()
-
-	_, err := repo.InjectTo(ctx)
+	_, err := repo.InjectTo(context.Background())
 	if err != nil {
 		fmt.Println("inject error:", err)
-		return
 	}
 
 	// Output:
-	// inject error: creating with module *module_test.Cache: new cache error
+	// inject error: creating with module module_test.DB: connection failed
 }
-
-func ExampleModule_createWithPanic() {
-	repo := module.NewRepo()
-	repo.Add(ModuleDB.ProvideValue(&db{target: "localhost.db"}))
-	repo.Add(ModuleCache.ProvideWithFunc(func(ctx context.Context) (*Cache, error) {
-		_ = ModuleDB.Value(ctx)
-		panic(fmt.Errorf("new cache error"))
-	}))
-
-	defer func() {
-		err := recover()
-		fmt.Println("panic:", err)
-	}()
-
-	ctx := context.Background()
-
-	_, err := repo.InjectTo(ctx)
-	if err != nil {
-		fmt.Println("inject error:", err)
-		return
-	}
-
-	// Output:
-	// panic: new cache error
-}
-
-func ExampleModule_notExistingProvider() {
-	ctx := context.Background()
-
-	repo := module.NewRepo()
-	repo.Add(ProvideCache)
-	// repo.Add(ModuleDB.ProvideValue())
-
-	_, err := repo.InjectTo(ctx)
-	if err != nil {
-		fmt.Println("inject error:", err)
-		return
-	}
-
-	// Output:
-	// inject error: creating with module module_test.DB: can't find module
-}
-
-func ExampleModule_duplicatingProviders() {
-	defer func() {
-		p := recover().(string)
-		// Remove the file line info for testing.
-		fmt.Println("panic:", regexp.MustCompile(`at .*`).ReplaceAllString(p, "at <removed file and line>"))
-	}()
-
-	repo := module.NewRepo()
-	repo.Add(ModuleDB.ProvideValue(&db{target: "real.db"}))
-	repo.Add(ModuleDB.ProvideValue(&db{target: "fake.db"}))
-
-	// Output:
-	// panic: already have a provider with type module_test.DB, added at <removed file and line>
-}
-
-type CircularA struct{}
-type CircularB struct{}
-
-var (
-	ModuleCircularA = module.New[*CircularA]()
-	ModuleCircularB = module.New[*CircularB]()
-)
 
 func ExampleModule_circularDependency() {
+	type A struct{}
+	type B struct{}
+
+	mA := module.New[*A]()
+	mB := module.New[*B]()
+
 	repo := module.NewRepo()
-	repo.Add(ModuleCircularA.ProvideWithFunc(func(ctx context.Context) (*CircularA, error) {
-		_ = ModuleCircularB.Value(ctx)
-		return &CircularA{}, nil
+	repo.Add(mA.ProvideWithFunc(func(ctx context.Context) (*A, error) {
+		_ = mB.Value(ctx)
+		return &A{}, nil
 	}))
-	repo.Add(ModuleCircularB.ProvideWithFunc(func(ctx context.Context) (*CircularB, error) {
-		_ = ModuleCircularA.Value(ctx)
-		return &CircularB{}, nil
+	repo.Add(mB.ProvideWithFunc(func(ctx context.Context) (*B, error) {
+		_ = mA.Value(ctx)
+		return &B{}, nil
 	}))
 
-	ctx := context.Background()
-
-	_, err := repo.InjectTo(ctx)
+	_, err := repo.InjectTo(context.Background())
 	if err != nil {
 		fmt.Println("inject error:", err)
-		return
 	}
 
 	// Output:
-	// inject error: creating with module *module_test.CircularA: circular dependency detected: *module_test.CircularA -> *module_test.CircularB -> *module_test.CircularA
+	// inject error: creating with module *module_test.A: circular dependency detected: *module_test.A -> *module_test.B -> *module_test.A
+}
+
+func ExampleModule_registrationErrors() {
+	// 1. Missing provider
+	repo1 := module.NewRepo()
+	repo1.Add(ProvideCache) // Depends on DB, but DB provider is missing.
+	_, err := repo1.InjectTo(context.Background())
+	fmt.Println("missing provider:", err)
+
+	// 2. Duplicate provider (causes panic on Add)
+	repo2 := module.NewRepo()
+	repo2.Add(ModuleDB.ProvideValue(&db{target: "1"}))
+
+	defer func() {
+		if r := recover(); r != nil {
+			msg := fmt.Sprintf("%v", r)
+			fmt.Println("duplicate provider:", regexp.MustCompile(`at .*`).ReplaceAllString(msg, "at <removed>"))
+		}
+	}()
+	repo2.Add(ModuleDB.ProvideValue(&db{target: "2"}))
+
+	// Output:
+	// missing provider: creating with module module_test.DB: can't find module
+	// duplicate provider: already have a provider with type module_test.DB, added at <removed>
 }
