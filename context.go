@@ -9,6 +9,9 @@ import (
 // Usually it misses adding that module to a repo.
 var ErrNoPrivoder = fmt.Errorf("can't find module")
 
+// ErrCircularDependency means that there is a circular dependency between modules.
+var ErrCircularDependency = fmt.Errorf("circular dependency detected")
+
 type createPanic struct {
 	key moduleKey
 	err error
@@ -18,6 +21,7 @@ type buildContext struct {
 	context.Context
 	providers map[moduleKey]providerWithLine
 	instances map[moduleKey]any
+	stack     []moduleKey
 }
 
 func (c *buildContext) Value(key any) any {
@@ -35,7 +39,25 @@ func (c *buildContext) Value(key any) any {
 		panic(createPanic{key: moduleKey, err: ErrNoPrivoder})
 	}
 
-	instance, err := provider.provider.value(c)
+	for _, k := range c.stack {
+		if k == moduleKey {
+			path := ""
+			for _, s := range c.stack {
+				path += fmt.Sprintf("%s -> ", s.String())
+			}
+			path += moduleKey.String()
+			panic(createPanic{key: moduleKey, err: fmt.Errorf("%w: %s", ErrCircularDependency, path)})
+		}
+	}
+
+	builder := &buildContext{
+		Context:   c.Context,
+		providers: c.providers,
+		instances: c.instances,
+		stack:     append(c.stack, moduleKey),
+	}
+
+	instance, err := provider.provider.value(builder)
 	if err != nil {
 		panic(createPanic{key: moduleKey, err: err})
 	}

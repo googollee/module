@@ -223,3 +223,34 @@ func ExampleModule_duplicatingProviders() {
 	// Output:
 	// panic: already have a provider with type module_test.DB, added at <removed file and line>
 }
+
+type CircularA struct{}
+type CircularB struct{}
+
+var (
+	ModuleCircularA = module.New[*CircularA]()
+	ModuleCircularB = module.New[*CircularB]()
+)
+
+func ExampleModule_circularDependency() {
+	repo := module.NewRepo()
+	repo.Add(ModuleCircularA.ProvideWithFunc(func(ctx context.Context) (*CircularA, error) {
+		_ = ModuleCircularB.Value(ctx)
+		return &CircularA{}, nil
+	}))
+	repo.Add(ModuleCircularB.ProvideWithFunc(func(ctx context.Context) (*CircularB, error) {
+		_ = ModuleCircularA.Value(ctx)
+		return &CircularB{}, nil
+	}))
+
+	ctx := context.Background()
+
+	_, err := repo.InjectTo(ctx)
+	if err != nil {
+		fmt.Println("inject error:", err)
+		return
+	}
+
+	// Output:
+	// inject error: creating with module *module_test.CircularA: circular dependency detected: *module_test.CircularA -> *module_test.CircularB -> *module_test.CircularA
+}
