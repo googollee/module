@@ -6,7 +6,7 @@ import (
 )
 
 func TestProviderReturnNilInterfaceWithoutError(t *testing.T) {
-	type Interface interface{}
+	type Interface any
 	newNilInterface := func(context.Context) (Interface, error) {
 		return nil, nil
 	}
