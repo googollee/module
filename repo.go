@@ -46,6 +46,7 @@ func (r *Repo) Add(provider Provider) {
 
 // InjectTo injects instances created by modules into a context `ctx`.
 // It returns a new context with all injections. If any module creates an instance with an error, `InjectTo` returns that error with the module name.
+// InjectTo is not thread-safe. It should not be called concurrently.
 // Injecting instances only create once if necessary. Calling `InjectTo` mutlple times share instances between returning contexts.
 // InjectTo ignores all new providers adding to the Repo after the first run. So adding all providers before calling `InjectTo`.
 func (r *Repo) InjectTo(ctx context.Context) (context.Context, error) {
