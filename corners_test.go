@@ -74,7 +74,7 @@ func TestModuleKeyIsNotString(t *testing.T) {
 		t.Errorf("moduleInstance.Value(ctx) = nil, want: not nil")
 	}
 
-	keyAsStr := string(key)
+	keyAsStr := key.String()
 	if got := ctx.Value(keyAsStr); got != nil {
 		t.Errorf("ctx.Value(string(%q)) = %v, want: nil", keyAsStr, got)
 	}

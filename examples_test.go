@@ -221,5 +221,5 @@ func ExampleModule_duplicatingProviders() {
 	repo.Add(ModuleDB.ProvideValue(&db{target: "fake.db"}))
 
 	// Output:
-	// panic: already have a provider with type "module_test.DB", added at <removed file and line>
+	// panic: already have a provider with type module_test.DB, added at <removed file and line>
 }

@@ -7,7 +7,9 @@ import (
 	"reflect"
 )
 
-type moduleKey string
+type moduleKey struct {
+	reflect.Type
+}
 
 // Module provides a module to inject and retreive an instance with its type.
 type Module[T any] struct {
@@ -16,9 +18,8 @@ type Module[T any] struct {
 
 // New creates a new module with type `T` and the constructor `builder`.
 func New[T any]() Module[T] {
-	var t T
 	return Module[T]{
-		moduleKey: moduleKey(reflect.TypeOf(&t).Elem().String()),
+		moduleKey: moduleKey{reflect.TypeOf((*T)(nil)).Elem()},
 	}
 }
 

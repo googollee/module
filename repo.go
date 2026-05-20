@@ -32,7 +32,7 @@ func NewRepo() *Repo {
 // Add adds a provider to the repo.
 func (r *Repo) Add(provider Provider) {
 	if p, ok := r.providers[provider.key()]; ok {
-		msg := fmt.Sprintf("already have a provider with type %q, added at %s:%d", provider.key(), p.file, p.line)
+		msg := fmt.Sprintf("already have a provider with type %s, added at %s:%d", provider.key(), p.file, p.line)
 		panic(msg)
 	}
 
